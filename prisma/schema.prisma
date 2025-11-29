@@ -1,0 +1,298 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?  // null for OAuth users
+  name      String
+  avatar    String?
+  provider  String   @default("email") // "email" | "google"
+  providerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  ownedTeams     Team[]        @relation("TeamOwner")
+  teamMembers    TeamMember[]
+  ownedProjects  Project[]     @relation("ProjectOwner")
+  assignedIssues Issue[]       @relation("IssueAssignee")
+  createdIssues  Issue[]       @relation("IssueCreator")
+  comments       Comment[]
+  notifications  Notification[]
+  projectFavorites ProjectFavorite[]
+
+  @@map("users")
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  owner    User         @relation("TeamOwner", fields: [ownerId], references: [id])
+  members  TeamMember[]
+  projects Project[]
+  invites  TeamInvite[]
+  activities TeamActivity[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     String   @default("MEMBER") // "OWNER" | "ADMIN" | "MEMBER"
+  joinedAt DateTime @default(now())
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model TeamInvite {
+  id        String   @id @default(cuid())
+  email     String
+  teamId    String
+  role      String   @default("MEMBER") // "OWNER" | "ADMIN" | "MEMBER"
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_invites")
+}
+
+model TeamActivity {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String?
+  type      String   // "member_join", "project_created", etc.
+  details   String?  // JSON stored as string
+  createdAt DateTime @default(now())
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_activities")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  teamId      String
+  ownerId     String
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  team         Team           @relation(fields: [teamId], references: [id])
+  owner        User           @relation("ProjectOwner", fields: [ownerId], references: [id])
+  issues       Issue[]
+  labels       Label[]
+  customStates CustomState[]
+  favorites    ProjectFavorite[]
+
+  @@map("projects")
+}
+
+model ProjectFavorite {
+  id        String @id @default(cuid())
+  userId    String
+  projectId String
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("project_favorites")
+}
+
+model Label {
+  id        String @id @default(cuid())
+  name      String
+  color     String @default("#3B82F6")
+  projectId String
+
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  labelIssues LabelIssue[]
+
+  @@unique([projectId, name])
+  @@map("labels")
+}
+
+model CustomState {
+  id        String @id @default(cuid())
+  name      String
+  color     String @default("#6B7280")
+  position  Int
+  projectId String
+  wipLimit  Int?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@map("custom_states")
+}
+
+model Issue {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("Backlog")
+  priority    String    @default("MEDIUM") // "HIGH" | "MEDIUM" | "LOW"
+  dueDate     DateTime?
+  position    Float     @default(0)
+  projectId   String
+  creatorId   String
+  assigneeId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id])
+  creator     User         @relation("IssueCreator", fields: [creatorId], references: [id])
+  assignee    User?        @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  comments    Comment[]
+  subtasks    Subtask[]
+  labelIssues LabelIssue[]
+  aiCache     IssueAICache?
+  history     IssueHistory[]
+
+  @@map("issues")
+}
+
+model LabelIssue {
+  id      String @id @default(cuid())
+  labelId String
+  issueId String
+
+  // Relations
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([labelId, issueId])
+  @@map("label_issues")
+}
+
+model Subtask {
+  id        String  @id @default(cuid())
+  title     String
+  completed Boolean @default(false)
+  position  Int
+  issueId   String
+
+  // Relations
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@map("subtasks")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  issueId   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  issue  Issue @relation(fields: [issueId], references: [id])
+  author User  @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+model IssueHistory {
+  id        String   @id @default(cuid())
+  issueId   String
+  field     String   // "status", "assignee", "priority", etc.
+  oldValue  String?
+  newValue  String?
+  changedBy String
+  createdAt DateTime @default(now())
+
+  // Relations
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@map("issue_history")
+}
+
+model IssueAICache {
+  id                   String   @id @default(cuid())
+  issueId              String   @unique
+  summary              String?
+  suggestions          String?
+  commentSummary       String?
+  recommendedLabels    String?  // AI 추천 라벨 (JSON stored as string)
+  lastDescriptionHash  String?
+  lastCommentCount     Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@map("issue_ai_cache")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "issue_assigned", "comment_added", etc.
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  entityId  String?  // 관련 엔티티 ID (issue, project 등)
+  entityType String? // "issue", "project", "team"
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AIRateLimit {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   // "summary", "suggestions", etc.
+  count     Int      @default(1)
+  window    DateTime // Rate limit window start time
+  createdAt DateTime @default(now())
+
+  @@unique([userId, endpoint, window])
+  @@map("ai_rate_limits")
+}
+
+// Note: SQLite doesn't support enums, so we use String types with constraints
+// TeamRole: "OWNER" | "ADMIN" | "MEMBER"
+// Priority: "HIGH" | "MEDIUM" | "LOW"
+
