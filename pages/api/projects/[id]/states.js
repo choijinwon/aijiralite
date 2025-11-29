@@ -2,7 +2,7 @@
 import { db } from '../../../../lib/db';
 import { authenticate } from '../../../../lib/auth';
 import { checkProjectAccess } from '../../../../lib/permissions';
-import { authOptions } from '../../../auth/[...nextauth]';
+import { authOptions } from '../../auth/[...nextauth]';
 import { z } from 'zod';
 
 const customStateSchema = z.object({
