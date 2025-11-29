@@ -21,8 +21,18 @@ console.log('   DIRECT_URL:', directUrl ? '✅ 설정됨' : '❌ 없음');
 const finalDirectUrl = directUrl || databaseUrl;
 
 if (!finalDirectUrl) {
-  console.error('   ❌ DATABASE_URL이 설정되지 않았습니다!');
-  console.error('   Netlify 대시보드에서 DATABASE_URL 환경 변수를 설정하세요.');
+  console.error('\n❌ [ERROR] DATABASE_URL이 설정되지 않았습니다!');
+  console.error('\n📋 [해결 방법] Netlify 대시보드에서 환경 변수를 설정하세요:');
+  console.error('   1. https://app.netlify.com 접속');
+  console.error('   2. 사이트 선택 > Site settings > Environment variables');
+  console.error('   3. 다음 환경 변수 추가:');
+  console.error('      - DATABASE_URL: postgresql://user:password@host:port/database?schema=public');
+  console.error('      - DIRECT_URL: DATABASE_URL과 동일한 값');
+  console.error('      - NEXTAUTH_SECRET: 32자 이상의 랜덤 문자열');
+  console.error('      - NEXTAUTH_URL: https://your-site.netlify.app');
+  console.error('      - JWT_SECRET: 32자 이상의 랜덤 문자열');
+  console.error('\n📖 자세한 가이드: QUICK_START_NETLIFY.md 파일 참고');
+  console.error('\n');
   process.exit(1);
 }
 
