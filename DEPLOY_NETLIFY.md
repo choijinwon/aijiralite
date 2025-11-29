@@ -20,10 +20,14 @@ Netlify 대시보드 > Site settings > Environment variables에서 다음 변수
 
 ### 필수 환경 변수:
 
+**⚠️ 중요: 다음 환경 변수들은 반드시 설정해야 합니다!**
+
 ```env
-# 데이터베이스
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+# 데이터베이스 (필수!)
+DATABASE_URL="postgresql://user:password@host:port/database?schema=public"
+DIRECT_URL="postgresql://user:password@host:port/database?schema=public"
+# 참고: DIRECT_URL은 일반적으로 DATABASE_URL과 동일한 값입니다
+# Prisma가 마이그레이션을 실행할 때 직접 연결에 사용됩니다
 
 # 인증
 NEXTAUTH_SECRET="your-secret-key-here"
