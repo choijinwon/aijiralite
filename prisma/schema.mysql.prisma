@@ -1,0 +1,16 @@
+// prisma/schema.mysql.prisma
+// Netlify 배포용 MySQL 스키마
+// 사용법: 이 파일을 schema.prisma로 복사하거나, provider만 변경
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 나머지 모델은 기존 schema.prisma와 동일
+// provider만 "sqlite"에서 "mysql"로 변경하면 됩니다
+
