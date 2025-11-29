@@ -2,6 +2,7 @@
 import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
 import bcrypt from 'bcryptjs';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   if (req.method !== 'PUT') {
@@ -9,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {

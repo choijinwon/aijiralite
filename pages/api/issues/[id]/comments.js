@@ -4,10 +4,11 @@ import { authenticate } from '../../../../lib/auth';
 import { checkProjectAccess } from '../../../../lib/permissions';
 import { commentSchema } from '../../../../lib/validations';
 import { notifyCommentAdded } from '../../../../lib/notifications';
+import { authOptions } from '../../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { id } = req.query;
 
     const issue = await db.issue.findUnique({
