@@ -1,8 +1,8 @@
 // pages/api/teams/[id]/members/[userId]/role.js
-import { db } from '../../../../../lib/db';
-import { authenticate } from '../../../../../lib/auth';
-import { checkTeamRole } from '../../../../../lib/permissions';
-import { notifyRoleChanged } from '../../../../../lib/notifications';
+import { db } from '../../../../../../lib/db';
+import { authenticate } from '../../../../../../lib/auth';
+import { checkTeamRole } from '../../../../../../lib/permissions';
+import { notifyRoleChanged } from '../../../../../../lib/notifications';
 
 export default async function handler(req, res) {
   try {
