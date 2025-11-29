@@ -7,7 +7,7 @@ import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
     const { teamId } = req.query;
 
     if (req.method === 'GET') {

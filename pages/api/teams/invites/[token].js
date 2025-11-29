@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       res.status(200).json(invite);
     }
     else if (req.method === 'POST') {
-      const user = await authenticate(req, authOptions);
+      const user = await authenticate(req, authOptions, res);
 
       const invite = await db.teamInvite.findUnique({
         where: { token },

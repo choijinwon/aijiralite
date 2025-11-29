@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
     const { issueId } = req.query;
 
     if (!issueId) {

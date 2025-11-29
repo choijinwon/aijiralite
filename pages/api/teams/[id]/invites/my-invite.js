@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
     const { id: teamId } = req.query;
 
     // Find pending invite for current user's email

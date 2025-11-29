@@ -5,7 +5,7 @@ import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
 
     if (req.method === 'GET') {
       const userData = await db.user.findUnique({

@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const startTime = Date.now();
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
     const authTime = Date.now() - startTime;
     
     const { unreadOnly, limit = 50 } = req.query;

@@ -8,7 +8,7 @@ import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req, authOptions);
+    const user = await authenticate(req, authOptions, res);
     const { projectId } = req.query;
 
     if (req.method === 'GET') {
