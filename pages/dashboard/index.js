@@ -30,7 +30,16 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [dashboardType, setDashboardType] = useState('personal'); // 'personal' or 'team'
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({
+    totalIssues: 0,
+    totalProjects: 0,
+    totalMembers: 0,
+    totalTeams: 0,
+    overdueIssues: 0,
+    statusCounts: {},
+    priorityCounts: {},
+    dailyTrend: []
+  });
   const [teams, setTeams] = useState([]);
   const [projects, setProjects] = useState([]);
   const [issues, setIssues] = useState([]);
@@ -60,7 +69,16 @@ export default function Dashboard() {
         api.getIssues().catch(() => [])
       ]);
 
-      setStats(statsData);
+      setStats(statsData || {
+        totalIssues: 0,
+        totalProjects: 0,
+        totalMembers: 0,
+        totalTeams: 0,
+        overdueIssues: 0,
+        statusCounts: {},
+        priorityCounts: {},
+        dailyTrend: []
+      });
       setTeams(teamsData || []);
       setProjects(projectsData || []);
       setIssues(issuesData || []);
@@ -146,20 +164,20 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <StatCard
             title={dashboardType === 'personal' ? 'My Issues' : 'Team Issues'}
-            value={stats.totalIssues || 0}
+            value={stats?.totalIssues || 0}
             subtitle={dashboardType === 'personal' ? 'Assigned to you' : 'All team issues'}
             icon={AlertCircle}
           />
           <StatCard
             title={dashboardType === 'personal' ? 'My Projects' : 'Team Projects'}
-            value={stats.totalProjects || 0}
+            value={stats?.totalProjects || 0}
             subtitle={dashboardType === 'personal' ? 'Your projects' : 'All team projects'}
             icon={FolderKanban}
           />
           {dashboardType === 'team' && (
             <StatCard
               title="Team Members"
-              value={stats.totalMembers || 0}
+              value={stats?.totalMembers || 0}
               subtitle="Active members"
               icon={Users}
             />
@@ -167,17 +185,17 @@ export default function Dashboard() {
           {dashboardType === 'team' && (
             <StatCard
               title="Teams"
-              value={stats.totalTeams || 0}
+              value={stats?.totalTeams || 0}
               subtitle="Your teams"
               icon={Users}
             />
           )}
           <StatCard
             title="Overdue Issues"
-            value={stats.overdueIssues || 0}
+            value={stats?.overdueIssues || 0}
             subtitle="Past due date"
             icon={Calendar}
-            trend={stats.overdueIssues > 0 ? 1 : 0}
+            trend={(stats?.overdueIssues || 0) > 0 ? 1 : 0}
           />
         </div>
 
@@ -186,13 +204,13 @@ export default function Dashboard() {
           {/* Issue Status Chart */}
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issues by Status</h3>
-            <IssueStatusChart data={stats.statusCounts || {}} />
+            <IssueStatusChart data={stats?.statusCounts || {}} />
           </Card>
 
           {/* Priority Chart */}
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issues by Priority</h3>
-            <PriorityChart data={stats.priorityCounts || {}} />
+            <PriorityChart data={stats?.priorityCounts || {}} />
           </Card>
         </div>
 
@@ -200,7 +218,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issue Trend (Last 7 Days)</h3>
-            <IssueTrendChart data={stats.dailyTrend || []} />
+            <IssueTrendChart data={stats?.dailyTrend || []} />
           </Card>
         </div>
 
