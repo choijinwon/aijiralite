@@ -67,9 +67,6 @@ export default async function handler(req, res) {
       });
 
       // Create notification for the user whose role was changed
-      const team = await db.team.findUnique({
-        where: { id }
-      });
       const targetUser = await db.user.findUnique({ where: { id: userId } });
       if (targetUser && targetUser.id !== user.id) { // Don't notify if user changes their own role
         await notifyRoleChanged(userId, team.name, role, user.name);
