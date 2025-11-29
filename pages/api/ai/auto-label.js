@@ -3,6 +3,7 @@ import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
 import { checkProjectAccess } from '../../../lib/permissions';
 import { autoLabelIssue } from '../../../lib/ai';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { issueId, projectId } = req.body;
 
     if (!issueId || !projectId) {

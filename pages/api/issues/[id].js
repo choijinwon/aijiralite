@@ -3,10 +3,11 @@ import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
 import { checkProjectAccess } from '../../../lib/permissions';
 import { notifyIssueAssigned } from '../../../lib/notifications';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { id } = req.query;
 
     if (req.method === 'GET') {
