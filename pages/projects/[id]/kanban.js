@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { useSupabaseAuth } from '../../../hooks/useSupabaseAuth';
 import { api } from '../../../utils/api';
 import KanbanBoard from '../../../components/kanban/KanbanBoard';
 import Modal from '../../../components/ui/Modal';
@@ -14,7 +15,8 @@ import toast from 'react-hot-toast';
 
 export default function KanbanPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const { id } = router.query;
   const [project, setProject] = useState(null);
   const [issues, setIssues] = useState([]);
@@ -25,37 +27,49 @@ export default function KanbanPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!session || !id) return;
+    // Wait for router to be ready
+    if (!router.isReady) return;
 
-    const fetchData = async () => {
-      setError(null);
-      setLoading(true);
-      try {
-        const [projectData, issuesData, labelsData] = await Promise.all([
-          api.getProject(id),
-          api.getIssues(id),
-          api.getLabels(id)
-        ]);
-        setProject(projectData);
-        setIssues(issuesData);
-        setLabels(labelsData);
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
 
-        // Get team members for assignee dropdown
-        if (projectData.team) {
-          const team = await api.getTeam(projectData.team.id);
-          setUsers(team.members.map(m => m.user));
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/signin');
+      return;
+    }
+
+    if (isAuthenticated && !isLoading && id) {
+      const fetchData = async () => {
+        setError(null);
+        setLoading(true);
+        try {
+          const [projectData, issuesData, labelsData] = await Promise.all([
+            api.getProject(id),
+            api.getIssues(id),
+            api.getLabels(id)
+          ]);
+          setProject(projectData);
+          setIssues(issuesData);
+          setLabels(labelsData);
+
+          // Get team members for assignee dropdown
+          if (projectData.team) {
+            const team = await api.getTeam(projectData.team.id);
+            setUsers(team.members.map(m => m.user));
+          }
+        } catch (err) {
+          const errorMessage = err?.message || 'Failed to load project';
+          setError(errorMessage);
+          toast.error(errorMessage);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        const errorMessage = err?.message || 'Failed to load project';
-        setError(errorMessage);
-        toast.error(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    fetchData();
-  }, [session, id, router]);
+      fetchData();
+    }
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, id, router]);
 
   const handleRetry = async () => {
     if (id) {

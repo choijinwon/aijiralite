@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../../hooks/useSupabaseAuth';
 import { api } from '../../../utils/api';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -24,6 +25,7 @@ import Link from 'next/link';
 
 export default function ProjectDetailPage() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
   const { id } = router.query;
   const [project, setProject] = useState(null);
@@ -38,19 +40,29 @@ export default function ProjectDetailPage() {
   const [canDelete, setCanDelete] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/signin');
       return;
     }
 
-    if (status === 'authenticated' && id) {
+    if (isAuthenticated && !isLoading && id) {
       fetchData();
     }
-  }, [status, session, id, router]);
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, id, router]);
 
   useEffect(() => {
-    if (project && session?.user) {
-      const isOwner = project.ownerId === session.user.id;
+    // Get current user ID from either NextAuth or Supabase
+    const currentUserId = session?.user?.id || supabaseUser?.id;
+    
+    if (project && currentUserId) {
+      const isOwner = project.ownerId === currentUserId;
       setCanDelete(isOwner);
       
       // For edit permission, check if user is owner or team admin
@@ -60,7 +72,7 @@ export default function ProjectDetailPage() {
         // Try to get team members to check role
         api.getTeamMembers(project.team.id)
           .then(members => {
-            const userMember = members.find(m => m.userId === session.user.id);
+            const userMember = members.find(m => m.userId === currentUserId);
             if (userMember && ['OWNER', 'ADMIN'].includes(userMember.role)) {
               setCanEdit(true);
             }
@@ -73,7 +85,7 @@ export default function ProjectDetailPage() {
         setCanEdit(isOwner);
       }
     }
-  }, [project, session]);
+  }, [project, session, supabaseUser]);
 
   const fetchData = async () => {
     setError(null);

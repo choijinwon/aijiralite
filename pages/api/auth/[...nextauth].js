@@ -136,7 +136,7 @@ export const authOptions = {
   debug: process.env.NODE_ENV === 'development',
 };
 
-// Error handling wrapper
+// Error handling wrapper with cache headers
 const handler = async (req, res) => {
   try {
     // Check if NEXTAUTH_SECRET is set
@@ -159,6 +159,14 @@ const handler = async (req, res) => {
         process.env.NEXTAUTH_URL = url;
       }
     }
+
+    // Set cache headers for all NextAuth endpoints to prevent 304 responses
+    // This includes /api/auth/providers, /api/auth/session, etc.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Last-Modified', new Date().toUTCString());
+    res.setHeader('ETag', `"${Date.now()}"`);
 
     return NextAuth(authOptions)(req, res);
   } catch (error) {

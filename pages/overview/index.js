@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { api } from '../../utils/api';
 import { Search, Filter, Grid, List } from 'lucide-react';
 import Button from '../../components/ui/Button';
@@ -14,6 +15,7 @@ import toast from 'react-hot-toast';
 
 export default function OverviewPage() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
   const [teams, setTeams] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -23,15 +25,22 @@ export default function OverviewPage() {
   const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list'
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/signin');
       return;
     }
 
-    if (status === 'authenticated') {
+    if (isAuthenticated && !isLoading) {
       fetchData();
     }
-  }, [status, session, router]);
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, router]);
 
   const fetchData = async () => {
     try {

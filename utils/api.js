@@ -2,7 +2,21 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  // Try to get Supabase session token if no JWT token
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const { supabase } = await import('../lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        token = session.access_token;
+      }
+    } catch (error) {
+      // Supabase not available, continue with JWT token
+      console.log('Supabase session check failed:', error.message);
+    }
+  }
   
   const config = {
     ...options,
@@ -62,7 +76,8 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify({ role }),
   }),
-  getTeamInvites: (id) => apiRequest(`/api/teams/${id}/invites`),
+  getTeamInvites: (id) => apiRequest(`/api/teams/${id}/invites?t=${Date.now()}`),
+  getMyTeamInvite: (id) => apiRequest(`/api/teams/${id}/invites/my-invite?t=${Date.now()}`),
   createTeamInvite: (id, email, role) => apiRequest(`/api/teams/${id}/invites`, {
     method: 'POST',
     body: JSON.stringify({ email, role }),

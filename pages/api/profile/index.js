@@ -20,10 +20,19 @@ export default async function handler(req, res) {
         }
       });
 
+      if (!userData) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
       res.status(200).json(userData);
     }
     else if (req.method === 'PUT') {
       const { name, avatar } = req.body;
+
+      // Validate input
+      if (!name && avatar === undefined) {
+        return res.status(400).json({ error: 'At least one field (name or avatar) is required' });
+      }
 
       const updatedUser = await db.user.update({
         where: { id: user.id },
@@ -48,6 +57,19 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('Profile error:', error);
+    
+    // Handle authentication errors
+    if (error.message?.includes('token') || 
+        error.message?.includes('No token') || 
+        error.message?.includes('Invalid token')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Handle database errors
+    if (error.code === 'P2002' || error.code?.startsWith('P')) {
+      return res.status(400).json({ error: 'Database error occurred' });
+    }
+    
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

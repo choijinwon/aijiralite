@@ -17,23 +17,34 @@ export default async function handler(req, res) {
     const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     if (type === 'personal') {
-      // Personal dashboard stats
-      const myIssues = await db.issue.findMany({
-        where: {
-          assigneeId: user.id,
-          deletedAt: null
-        }
-      });
-
-      const myProjects = await db.project.findMany({
-        where: {
-          OR: [
-            { ownerId: user.id },
-            { team: { members: { some: { userId: user.id } } } }
-          ],
-          deletedAt: null
-        }
-      });
+      // Personal dashboard stats - optimized parallel queries
+      const [myIssues, myProjects] = await Promise.all([
+        db.issue.findMany({
+          where: {
+            assigneeId: user.id,
+            deletedAt: null
+          },
+          select: {
+            status: true,
+            priority: true,
+            dueDate: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }),
+        db.project.findMany({
+          where: {
+            OR: [
+              { ownerId: user.id },
+              { team: { members: { some: { userId: user.id } } } }
+            ],
+            deletedAt: null
+          },
+          select: {
+            id: true
+          }
+        })
+      ]);
 
       // Status breakdown
       const statusCounts = {
@@ -55,17 +66,38 @@ export default async function handler(req, res) {
         priorityCounts[issue.priority] = (priorityCounts[issue.priority] || 0) + 1;
       });
 
-      // Recent activity (last 7 days)
-      const recentIssues = await db.issue.findMany({
+      // Recent activity (last 7 days) - only count needed
+      const recentIssuesCount = await db.issue.count({
         where: {
           assigneeId: user.id,
           createdAt: { gte: last7Days },
           deletedAt: null
-        },
-        orderBy: { createdAt: 'desc' }
+        }
       });
 
-      // Daily trend for last 7 days
+      // Daily trend for last 7 days - optimized with single aggregated query
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Get all issues created/updated in last 7 days in one query
+      const recentIssues = await db.issue.findMany({
+        where: {
+          assigneeId: user.id,
+          deletedAt: null,
+          OR: [
+            { createdAt: { gte: startDate } },
+            { updatedAt: { gte: startDate }, status: 'Done' }
+          ]
+        },
+        select: {
+          createdAt: true,
+          updatedAt: true,
+          status: true
+        }
+      });
+
+      // Group by day
       const dailyTrend = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now);
@@ -75,29 +107,14 @@ export default async function handler(req, res) {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
         
-        const created = await db.issue.count({
-          where: {
-            assigneeId: user.id,
-            createdAt: {
-              gte: startOfDay,
-              lt: endOfDay
-            },
-            deletedAt: null
-          }
-        });
-
-        const completed = await db.issue.count({
-          where: {
-            assigneeId: user.id,
-            status: 'Done',
-            updatedAt: {
-              gte: startOfDay,
-              lt: endOfDay
-            },
-            deletedAt: null
-          }
-        });
-
+        const created = recentIssues.filter(i => 
+          i.createdAt >= startOfDay && i.createdAt <= endOfDay
+        ).length;
+        
+        const completed = recentIssues.filter(i => 
+          i.status === 'Done' && i.updatedAt >= startOfDay && i.updatedAt <= endOfDay
+        ).length;
+        
         dailyTrend.push({
           date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           created,
@@ -110,12 +127,12 @@ export default async function handler(req, res) {
         totalProjects: myProjects.length,
         statusCounts,
         priorityCounts,
-        recentIssues: recentIssues.length,
+        recentIssues: recentIssuesCount,
         dailyTrend,
         overdueIssues: myIssues.filter(i => i.dueDate && new Date(i.dueDate) < now && i.status !== 'Done').length
       });
     } else {
-      // Team dashboard stats
+      // Team dashboard stats - optimized parallel queries
       const userTeams = await db.team.findMany({
         where: {
           OR: [
@@ -135,19 +152,31 @@ export default async function handler(req, res) {
         }
       });
 
-      const teamProjects = await db.project.findMany({
-        where: {
-          teamId: { in: userTeams.map(t => t.id) },
-          deletedAt: null
-        }
-      });
+      const teamProjectIds = userTeams.length > 0 
+        ? (await db.project.findMany({
+            where: {
+              teamId: { in: userTeams.map(t => t.id) },
+              deletedAt: null
+            },
+            select: { id: true }
+          })).map(p => p.id)
+        : [];
 
-      const teamIssues = await db.issue.findMany({
-        where: {
-          projectId: { in: teamProjects.map(p => p.id) },
-          deletedAt: null
-        }
-      });
+      const teamIssues = teamProjectIds.length > 0
+        ? await db.issue.findMany({
+            where: {
+              projectId: { in: teamProjectIds },
+              deletedAt: null
+            },
+            select: {
+              status: true,
+              priority: true,
+              dueDate: true,
+              createdAt: true,
+              updatedAt: true
+            }
+          })
+        : [];
 
       // Status breakdown
       const statusCounts = {
@@ -169,7 +198,31 @@ export default async function handler(req, res) {
         priorityCounts[issue.priority] = (priorityCounts[issue.priority] || 0) + 1;
       });
 
-      // Daily trend for last 7 days
+      // Daily trend for last 7 days - optimized with single aggregated query
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Get all team issues created/updated in last 7 days in one query
+      const recentTeamIssues = teamProjectIds.length > 0
+        ? await db.issue.findMany({
+            where: {
+              projectId: { in: teamProjectIds },
+              deletedAt: null,
+              OR: [
+                { createdAt: { gte: startDate } },
+                { updatedAt: { gte: startDate }, status: 'Done' }
+              ]
+            },
+            select: {
+              createdAt: true,
+              updatedAt: true,
+              status: true
+            }
+          })
+        : [];
+
+      // Group by day
       const dailyTrend = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now);
@@ -179,35 +232,28 @@ export default async function handler(req, res) {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
         
-        const created = await db.issue.count({
-          where: {
-            projectId: { in: teamProjects.map(p => p.id) },
-            createdAt: {
-              gte: startOfDay,
-              lt: endOfDay
-            },
-            deletedAt: null
-          }
-        });
-
-        const completed = await db.issue.count({
-          where: {
-            projectId: { in: teamProjects.map(p => p.id) },
-            status: 'Done',
-            updatedAt: {
-              gte: startOfDay,
-              lt: endOfDay
-            },
-            deletedAt: null
-          }
-        });
-
+        const created = recentTeamIssues.filter(i => 
+          i.createdAt >= startOfDay && i.createdAt <= endOfDay
+        ).length;
+        
+        const completed = recentTeamIssues.filter(i => 
+          i.status === 'Done' && i.updatedAt >= startOfDay && i.updatedAt <= endOfDay
+        ).length;
+        
         dailyTrend.push({
           date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           created,
           completed
         });
       }
+
+      const teamProjects = await db.project.findMany({
+        where: {
+          teamId: { in: userTeams.map(t => t.id) },
+          deletedAt: null
+        },
+        select: { id: true }
+      });
 
       res.status(200).json({
         totalTeams: userTeams.length,
@@ -222,6 +268,22 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('Dashboard stats error:', error);
+    
+    // Handle authentication errors
+    if (error.message?.includes('token') || error.message?.includes('No token') || error.message?.includes('Invalid token')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Handle database errors
+    if (error.code === 'P2002' || error.code?.startsWith('P')) {
+      return res.status(400).json({ error: 'Database error occurred' });
+    }
+    
+    // Handle timeout or connection errors
+    if (error.message?.includes('timeout') || error.message?.includes('connection')) {
+      return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+    }
+    
     res.status(500).json({ error: error.message || 'Failed to load dashboard stats' });
   }
 }

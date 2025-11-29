@@ -19,20 +19,32 @@ import {
 import Button from '../ui/Button';
 import { getInitials } from '../../lib/utils';
 import NotificationDropdown from './NotificationDropdown';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 
 export default function Navbar() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useSupabaseAuth();
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
+  // Use Supabase user if available, otherwise use NextAuth session
+  const currentUser = supabaseUser || session?.user;
+  const isLoading = status === 'loading' || supabaseLoading;
+
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
+    // Sign out from both NextAuth and Supabase
+    if (supabaseUser) {
+      await supabaseSignOut();
+    } else {
+      await signOut({ redirect: false });
+    }
     localStorage.removeItem('token');
     router.push('/');
   };
 
-  if (!session) {
+  // Don't show navbar while loading or if no user
+  if (isLoading || !currentUser) {
     return null;
   }
 
@@ -118,10 +130,10 @@ export default function Navbar() {
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50"
               >
-                {session.user.image || session.user.avatar ? (
+                {(currentUser.image || currentUser.avatar || currentUser.user_metadata?.avatar_url) ? (
                   <img
-                    src={session.user.image || session.user.avatar}
-                    alt={session.user.name}
+                    src={currentUser.image || currentUser.avatar || currentUser.user_metadata?.avatar_url}
+                    alt={currentUser.name || currentUser.email}
                     className="w-8 h-8 rounded-full object-cover"
                     onError={(e) => {
                       e.target.style.display = 'none';
@@ -134,13 +146,13 @@ export default function Navbar() {
                 ) : null}
                 <div 
                   className={`w-8 h-8 rounded-full bg-primary-500 text-white text-sm flex items-center justify-center ${
-                    (session.user.image || session.user.avatar) ? 'hidden' : ''
+                    (currentUser.image || currentUser.avatar || currentUser.user_metadata?.avatar_url) ? 'hidden' : ''
                   }`}
                 >
-                  {getInitials(session.user.name || 'U')}
+                  {getInitials(currentUser.name || currentUser.email || currentUser.user_metadata?.name || 'U')}
                 </div>
                 <span className="hidden md:block text-sm font-medium text-gray-700">
-                  {session.user.name}
+                  {currentUser.name || currentUser.email || currentUser.user_metadata?.name || 'User'}
                 </span>
               </button>
 

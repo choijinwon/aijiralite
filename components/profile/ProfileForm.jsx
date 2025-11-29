@@ -21,14 +21,7 @@ export default function ProfileForm({ user, onUpdate }) {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      const updated = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(data)
-      }).then(r => r.json());
+      const updated = await api.updateProfile(data);
 
       if (updated.error) {
         throw new Error(updated.error);
@@ -37,7 +30,19 @@ export default function ProfileForm({ user, onUpdate }) {
       toast.success('Profile updated successfully');
       onUpdate(updated);
     } catch (error) {
-      toast.error(error.message || 'Failed to update profile');
+      console.error('Profile update error:', error);
+      const errorMessage = error.message || 'Failed to update profile';
+      
+      // Handle authentication errors
+      if (errorMessage.includes('Authentication') || errorMessage.includes('401')) {
+        toast.error('Please sign in again to update your profile');
+        // Optionally redirect to sign in
+        setTimeout(() => {
+          window.location.href = '/auth/signin';
+        }, 2000);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

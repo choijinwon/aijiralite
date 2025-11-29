@@ -1,18 +1,41 @@
+# netlify.toml
 [build]
-  command = "npm install --legacy-peer-deps && npm run build"
+  command = "npm run netlify-build"
   publish = ".next"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--legacy-peer-deps"
+  SKIP_ENV_VALIDATION = "true"
 
-# Functions configuration for API routes
-[functions]
-  node_bundler = "esbuild"
-  included_files = ["prisma/**/*.prisma"]
+# Next.js 플러그인
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
-# Note: @netlify/plugin-nextjs handles routing automatically
-# No manual redirects needed
+# 리다이렉트 규칙 (Next.js API 라우트 지원)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/next"
+  status = 200
 
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/next"
+  status = 200
+
+# 보안 헤더
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# API 라우트 캐싱 방지
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, private"
+    Pragma = "no-cache"
+    Expires = "0"

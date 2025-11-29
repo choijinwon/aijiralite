@@ -1,7 +1,8 @@
 // pages/dashboard/index.js
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { api } from '../../utils/api';
 import Link from 'next/link';
 import { 
@@ -28,7 +29,15 @@ import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
+  const isMountedRef = useRef(true);
+  const fetchControllerRef = useRef(null);
+  const redirectingRef = useRef(false);
+  const authCheckedRef = useRef(false);
+  
+  // Use Supabase user if available, otherwise use NextAuth session
+  const currentUser = supabaseUser || session?.user;
   const [dashboardType, setDashboardType] = useState('personal'); // 'personal' or 'team'
   const [stats, setStats] = useState({
     totalIssues: 0,
@@ -47,28 +56,59 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [retrying, setRetrying] = useState(false);
 
+  // Authentication check effect - separate from data fetching
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-      return;
+    // Wait for router to be ready and prevent multiple redirects
+    if (!router.isReady || redirectingRef.current) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    // Mark that we've checked auth
+    authCheckedRef.current = true;
+
+    if (!isLoading && !isAuthenticated) {
+      // Prevent multiple redirects
+      if (redirectingRef.current) return;
+      redirectingRef.current = true;
+      
+      // Use a small delay to ensure router is ready for navigation
+      // This prevents the abort error during component loading
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          router.replace('/auth/signin');
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, router]);
+
+  // Data fetching effect - separate from auth check
+  const fetchData = useCallback(async () => {
+    // Cancel any ongoing fetch
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
     }
 
-    if (status === 'authenticated' && session) {
-      fetchData();
-    }
-  }, [status, session, router, dashboardType]);
+    // Create new AbortController for this fetch
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
 
-  const fetchData = async () => {
     setError(null);
     setLoading(true);
+    
     try {
-      const [statsData, teamsData, projectsData, issuesData] = await Promise.all([
-        api.getDashboardStats(dashboardType),
-        api.getTeams().catch(() => []),
-        api.getProjects().catch(() => []),
-        api.getIssues().catch(() => [])
-      ]);
+      // First, load stats immediately (most important)
+      const statsData = await api.getDashboardStats(dashboardType);
+      
+      // Check if component is still mounted and fetch wasn't cancelled
+      if (!isMountedRef.current || controller.signal.aborted) {
+        return;
+      }
 
+      // Set stats first so user sees something quickly
       setStats(statsData || {
         totalIssues: 0,
         totalProjects: 0,
@@ -79,17 +119,79 @@ export default function Dashboard() {
         priorityCounts: {},
         dailyTrend: []
       });
-      setTeams(teamsData || []);
-      setProjects(projectsData || []);
-      setIssues(issuesData || []);
+
+      // Then load other data in parallel (less critical)
+      // These can load in the background
+      Promise.all([
+        api.getTeams().catch(() => []),
+        api.getProjects().catch(() => []),
+        api.getIssues().catch(() => [])
+      ]).then(([teamsData, projectsData, issuesData]) => {
+        // Check again if component is still mounted
+        if (!isMountedRef.current || controller.signal.aborted) {
+          return;
+        }
+        
+        setTeams(teamsData || []);
+        setProjects(projectsData || []);
+        setIssues(issuesData || []);
+      }).catch(() => {
+        // Silently fail for secondary data
+        if (isMountedRef.current && !controller.signal.aborted) {
+          setTeams([]);
+          setProjects([]);
+          setIssues([]);
+        }
+      });
+
+      // Set loading to false after stats are loaded
+      if (isMountedRef.current && !controller.signal.aborted) {
+        setLoading(false);
+      }
     } catch (err) {
+      // Don't set error if fetch was aborted or component unmounted
+      if (!isMountedRef.current || controller.signal.aborted) {
+        return;
+      }
+      
+      // Ignore abort errors
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+        return;
+      }
+
       const errorMessage = err?.message || 'Failed to load dashboard';
       setError(errorMessage);
       toast.error(errorMessage);
-    } finally {
-      setLoading(false);
+      
+      if (isMountedRef.current && !controller.signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [dashboardType]);
+
+  // Fetch data when authenticated and dashboard type changes
+  useEffect(() => {
+    if (!router.isReady || redirectingRef.current) return;
+
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    // Only fetch if we've checked auth and user is authenticated
+    if (authCheckedRef.current && !isLoading && isAuthenticated) {
+      fetchData();
+    }
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, fetchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      redirectingRef.current = true; // Prevent any redirects during unmount
+      if (fetchControllerRef.current) {
+        fetchControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleRetry = async () => {
     setRetrying(true);
@@ -97,7 +199,7 @@ export default function Dashboard() {
     setRetrying(false);
   };
 
-  if (status === 'loading' || (loading && !error)) {
+  if (status === 'loading' || supabaseLoading || (loading && !error)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loading text="Loading dashboard..." />
@@ -105,7 +207,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!session) {
+  if (!currentUser) {
     return null;
   }
 
@@ -121,7 +223,7 @@ export default function Dashboard() {
     dailyTrend: []
   };
 
-  const myIssues = issues.filter(i => i.assigneeId === session?.user?.id);
+  const myIssues = issues.filter(i => i.assigneeId === currentUser?.id);
   const recentProjects = projects.slice(0, 5);
   const recentIssues = myIssues.slice(0, 5);
 
@@ -132,7 +234,7 @@ export default function Dashboard() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
-              <p className="text-gray-600 mt-1 text-sm sm:text-base">Welcome back, {session?.user?.name}</p>
+                  <p className="text-gray-600 mt-1 text-sm sm:text-base">Welcome back, {currentUser?.name || currentUser?.email}</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-full sm:w-auto">

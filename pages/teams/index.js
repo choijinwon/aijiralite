@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { api } from '../../utils/api';
 import Link from 'next/link';
 import Button from '../../components/ui/Button';
@@ -16,6 +17,7 @@ import Loading from '../../components/ui/Loading';
 
 export default function TeamsPage() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
   const [teams, setTeams] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -23,15 +25,22 @@ export default function TeamsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/signin');
       return;
     }
 
-    if (status === 'authenticated') {
+    if (isAuthenticated && !isLoading) {
       fetchTeams();
     }
-  }, [status, session, router]);
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, router]);
 
   const fetchTeams = async () => {
     try {

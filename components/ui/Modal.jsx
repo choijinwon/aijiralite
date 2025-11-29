@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', canClose = true }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -26,10 +26,22 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     xl: 'max-w-4xl',
   };
 
+  const handleBackdropClick = () => {
+    if (canClose) {
+      onClose();
+    }
+  };
+
+  const handleCloseClick = () => {
+    if (canClose) {
+      onClose();
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black bg-opacity-50 overflow-y-auto"
-      onClick={onClose}
+      onClick={handleBackdropClick}
     >
       <div 
         className={cn(
@@ -42,9 +54,13 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
         <div className="flex items-center justify-between p-4 sm:p-6 border-b sticky top-0 bg-white z-10">
           <h2 className="text-lg sm:text-xl font-semibold">{title}</h2>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1"
+            onClick={handleCloseClick}
+            className={cn(
+              "text-gray-400 hover:text-gray-600 p-1",
+              !canClose && "opacity-50 cursor-not-allowed"
+            )}
             aria-label="Close"
+            disabled={!canClose}
           >
             <X size={20} className="sm:w-6 sm:h-6" />
           </button>

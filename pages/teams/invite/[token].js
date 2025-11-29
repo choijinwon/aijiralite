@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { useSupabaseAuth } from '../../../hooks/useSupabaseAuth';
 import { api } from '../../../utils/api';
 import Button from '../../../components/ui/Button';
 import toast from 'react-hot-toast';
@@ -10,21 +11,29 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 export default function InvitePage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const { token } = router.query;
   const [invite, setInvite] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    if (!isLoading && !isAuthenticated) {
       router.push(`/auth/signin?callbackUrl=/teams/invite/${token}`);
       return;
     }
 
-    if (token && status === 'authenticated') {
+    if (isAuthenticated && !isLoading && token) {
       fetchInvite();
     }
-  }, [token, status, router]);
+  }, [router.isReady, token, status, session, supabaseUser, supabaseLoading, router]);
 
   const fetchInvite = async () => {
     try {
@@ -75,8 +84,10 @@ export default function InvitePage() {
     );
   }
 
+  // Get current user email from either NextAuth or Supabase
+  const currentUserEmail = session?.user?.email || supabaseUser?.email;
   const isExpired = new Date() > new Date(invite.expiresAt);
-  const emailMatch = session?.user?.email === invite.email;
+  const emailMatch = currentUserEmail === invite.email;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -97,7 +108,7 @@ export default function InvitePage() {
             <XCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-4">Email Mismatch</h1>
             <p className="text-gray-600 mb-6">
-              This invitation is for <strong>{invite.email}</strong>, but you are signed in as <strong>{session?.user?.email}</strong>.
+              This invitation is for <strong>{invite.email}</strong>, but you are signed in as <strong>{currentUserEmail}</strong>.
             </p>
             <Button onClick={() => router.push('/auth/signout')}>
               Sign Out

@@ -7,8 +7,12 @@ import Loading from '../../components/ui/Loading';
 export default function AuthCallback() {
   const router = useRouter();
   const [error, setError] = useState(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
+    // Wait for router to be ready
+    if (!router.isReady || isRedirecting) return;
+
     const handleAuthCallback = async () => {
       try {
         // Handle the OAuth callback from URL hash
@@ -22,8 +26,9 @@ export default function AuthCallback() {
         if (errorParam) {
           console.error('OAuth error from URL:', errorParam);
           setError(errorParam);
+          setIsRedirecting(true);
           setTimeout(() => {
-            router.push('/auth/signin?error=OAuthSignin');
+            router.replace('/auth/signin?error=OAuthSignin');
           }, 2000);
           return;
         }
@@ -31,8 +36,9 @@ export default function AuthCallback() {
         if (sessionError && !accessToken) {
           console.error('Auth callback error:', sessionError);
           setError(sessionError.message);
+          setIsRedirecting(true);
           setTimeout(() => {
-            router.push('/auth/signin?error=OAuthSignin');
+            router.replace('/auth/signin?error=OAuthSignin');
           }, 2000);
           return;
         }
@@ -41,22 +47,29 @@ export default function AuthCallback() {
         if (accessToken && !session) {
           console.log('Access token found, waiting for session...');
           // Wait a bit for Supabase to process the token
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           const { data: { session: newSession }, error: newError } = await supabase.auth.getSession();
           
           if (newError) {
             console.error('Error getting session after OAuth:', newError);
             setError(newError.message);
+            setIsRedirecting(true);
             setTimeout(() => {
-              router.push('/auth/signin?error=OAuthSignin');
+              router.replace('/auth/signin?error=OAuthSignin');
             }, 2000);
             return;
           }
 
           if (newSession?.user) {
             console.log('Session established, redirecting to dashboard');
-            router.push('/dashboard');
+            setIsRedirecting(true);
+            // Clear the hash from URL
+            window.history.replaceState(null, '', window.location.pathname);
+            // Small delay to ensure router is ready
+            setTimeout(() => {
+              router.replace('/dashboard');
+            }, 150);
             return;
           }
         }
@@ -64,17 +77,23 @@ export default function AuthCallback() {
         if (session?.user) {
           // User is authenticated, redirect to dashboard
           console.log('User authenticated, redirecting to dashboard');
-          router.push('/dashboard');
+          setIsRedirecting(true);
+          // Small delay to ensure router is ready
+          setTimeout(() => {
+            router.replace('/dashboard');
+          }, 150);
         } else {
           // No session, redirect to sign in
           console.log('No session found, redirecting to sign in');
-          router.push('/auth/signin?error=NoSession');
+          setIsRedirecting(true);
+          router.replace('/auth/signin?error=NoSession');
         }
       } catch (error) {
         console.error('Callback exception:', error);
         setError(error.message);
+        setIsRedirecting(true);
         setTimeout(() => {
-          router.push('/auth/signin?error=OAuthSignin');
+          router.replace('/auth/signin?error=OAuthSignin');
         }, 2000);
       }
     };
@@ -83,7 +102,7 @@ export default function AuthCallback() {
     if (typeof window !== 'undefined') {
       handleAuthCallback();
     }
-  }, [router]);
+  }, [router.isReady, router, isRedirecting]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

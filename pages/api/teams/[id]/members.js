@@ -19,6 +19,13 @@ export default async function handler(req, res) {
         orderBy: { joinedAt: 'asc' }
       });
 
+      // Set cache headers to prevent 304 caching issues
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Last-Modified', new Date().toUTCString());
+      res.setHeader('ETag', `"${Date.now()}"`);
+
       res.status(200).json(members);
     }
     else if (req.method === 'POST') {
@@ -123,7 +130,23 @@ export default async function handler(req, res) {
       res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error(error);
+    console.error('Team members API error:', error);
+    
+    // Handle authentication errors
+    if (error.message?.includes('token') || error.message?.includes('No token') || error.message?.includes('Invalid token')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Handle permission errors
+    if (error.message?.includes('permission') || error.message?.includes('access')) {
+      return res.status(403).json({ error: error.message || 'Access denied' });
+    }
+    
+    // Handle database errors
+    if (error.code === 'P2002' || error.code?.startsWith('P')) {
+      return res.status(400).json({ error: 'Database constraint violation' });
+    }
+    
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

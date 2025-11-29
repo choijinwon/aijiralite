@@ -1,10 +1,12 @@
 // pages/auth/signin.js
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { signIn } from 'next-auth/react';
 import { loginSchema } from '../../lib/validations';
 import { supabase } from '../../lib/supabase';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PasswordInput from '../../components/ui/PasswordInput';
@@ -12,33 +14,85 @@ import toast from 'react-hot-toast';
 
 export default function SignIn() {
   const router = useRouter();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(loginSchema)
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!router.isReady) return;
+    
+    if (supabaseUser && !supabaseLoading) {
+      router.replace('/dashboard');
+    }
+  }, [router.isReady, supabaseUser, supabaseLoading, router]);
+
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      // Credentials login using Supabase
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
+      // Check if Supabase is valid and configured
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const isSupabaseValid = supabaseUrl && 
+                              supabaseKey && 
+                              supabaseUrl !== 'https://placeholder.supabase.co' &&
+                              supabaseUrl.includes('.supabase.co') &&
+                              supabase._isValid !== false;
 
-      if (error) {
-        console.error('Login error:', error);
-        toast.error(error.message || 'Invalid email or password');
-      } else if (authData?.user) {
-        toast.success('Signed in successfully');
-        router.push('/dashboard');
-      } else {
-        toast.error('Login failed. Please try again.');
+      let supabaseAuthSuccess = false;
+
+      // Try Supabase authentication first if valid
+      if (isSupabaseValid) {
+        try {
+          const { data: authData, error } = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+          });
+
+          if (!error && authData?.user) {
+            supabaseAuthSuccess = true;
+            toast.success('Signed in successfully');
+            // Force page reload to ensure session is properly set
+            window.location.href = '/dashboard';
+            return;
+          } else if (error) {
+            // If Supabase returns 400 (user not found), fall back to NextAuth
+            // Only log non-400 errors to avoid noise
+            if (error.status !== 400) {
+              console.warn('Supabase auth error:', error.message);
+            }
+          }
+        } catch (supabaseError) {
+          // Supabase error, fall back to NextAuth
+          console.warn('Supabase authentication failed, falling back to NextAuth:', supabaseError.message);
+        }
+      }
+
+      // Fall back to NextAuth/Credentials if Supabase failed or not configured
+      if (!supabaseAuthSuccess) {
+        // Use NextAuth signIn to create proper session
+        const signInResult = await signIn('credentials', {
+          redirect: false,
+          email: data.email,
+          password: data.password,
+        });
+
+        if (signInResult?.error) {
+          toast.error('Invalid email or password');
+        } else if (signInResult?.ok) {
+          toast.success('Signed in successfully');
+          // Force page reload to ensure session is properly set
+          window.location.href = '/dashboard';
+        } else {
+          toast.error('Login failed. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Login exception:', error);
-      toast.error('An error occurred');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +182,7 @@ export default function SignIn() {
             type="submit"
             variant="primary"
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || isGoogleLoading}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
@@ -145,12 +199,13 @@ export default function SignIn() {
           </div>
 
           <Button
+            type="button"
             variant="secondary"
             className="w-full mt-4"
             onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading}
+            disabled={isGoogleLoading || isLoading}
           >
-            {isGoogleLoading ? 'Connecting...' : 'Google'}
+            {isGoogleLoading ? 'Connecting...' : 'Continue with Google'}
           </Button>
         </div>
 

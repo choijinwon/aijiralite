@@ -38,6 +38,5 @@ next-env.d.ts
 # prisma
 /prisma/migrations
 
-# cloned repositories
-/github-repos
-
+# netlify
+.netlify

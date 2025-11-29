@@ -27,6 +27,13 @@ export default async function handler(req, res) {
         orderBy: { name: 'asc' }
       });
 
+      // Set cache headers to prevent 304 caching issues
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Last-Modified', new Date().toUTCString());
+      res.setHeader('ETag', `"${Date.now()}"`);
+
       res.status(200).json(labels);
     }
     else if (req.method === 'POST') {

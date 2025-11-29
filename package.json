@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
+    "netlify-build": "prisma generate && prisma migrate deploy && next build",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:reset": "prisma db push --force-reset",

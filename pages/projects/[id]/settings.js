@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../../hooks/useSupabaseAuth';
 import { api } from '../../../utils/api';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import Input from '../../../components/ui/Input';
-import { Settings, Tag, Workflow, Plus, Edit2, Trash2, GripVertical, Archive, ArchiveRestore } from 'lucide-react';
+import { Settings, Tag, Workflow, Plus, Edit2, Trash2, GripVertical, Archive, ArchiveRestore, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ const stateSchema = z.object({
 
 export default function ProjectSettingsPage() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
   const { id } = router.query;
   const [project, setProject] = useState(null);
@@ -38,6 +40,10 @@ export default function ProjectSettingsPage() {
   const [editingState, setEditingState] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
+  const [isUpdatingLabel, setIsUpdatingLabel] = useState(false);
+  const [isCreatingState, setIsCreatingState] = useState(false);
+  const [isUpdatingState, setIsUpdatingState] = useState(false);
 
   const labelForm = useForm({
     resolver: zodResolver(labelSchema),
@@ -50,15 +56,22 @@ export default function ProjectSettingsPage() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
+    // Check both NextAuth and Supabase auth
+    const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+    const isLoading = status === 'loading' || supabaseLoading;
+
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth/signin');
       return;
     }
 
-    if (status === 'authenticated' && id) {
+    if (isAuthenticated && !isLoading && id) {
       fetchData();
     }
-  }, [status, session, id, router]);
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, id, router]);
 
   const fetchData = async () => {
     try {
@@ -112,6 +125,7 @@ export default function ProjectSettingsPage() {
   };
 
   const handleCreateLabel = async (data) => {
+    setIsCreatingLabel(true);
     try {
       const label = await api.createLabel(id, data);
       setLabels([...labels, label]);
@@ -120,10 +134,13 @@ export default function ProjectSettingsPage() {
       toast.success('Label created successfully');
     } catch (error) {
       toast.error(error.message || 'Failed to create label');
+    } finally {
+      setIsCreatingLabel(false);
     }
   };
 
   const handleUpdateLabel = async (data) => {
+    setIsUpdatingLabel(true);
     try {
       const updated = await api.updateLabel(id, editingLabel.id, data);
       setLabels(labels.map(l => l.id === editingLabel.id ? updated : l));
@@ -133,6 +150,8 @@ export default function ProjectSettingsPage() {
       toast.success('Label updated successfully');
     } catch (error) {
       toast.error(error.message || 'Failed to update label');
+    } finally {
+      setIsUpdatingLabel(false);
     }
   };
 
@@ -149,6 +168,7 @@ export default function ProjectSettingsPage() {
   };
 
   const handleCreateState = async (data) => {
+    setIsCreatingState(true);
     try {
       const state = await api.createCustomState(id, data);
       setStates([...states, state]);
@@ -157,10 +177,13 @@ export default function ProjectSettingsPage() {
       toast.success('Custom state created successfully');
     } catch (error) {
       toast.error(error.message || 'Failed to create state');
+    } finally {
+      setIsCreatingState(false);
     }
   };
 
   const handleUpdateState = async (data) => {
+    setIsUpdatingState(true);
     try {
       const updated = await api.updateCustomState(id, editingState.id, data);
       setStates(states.map(s => s.id === editingState.id ? updated : s));
@@ -170,6 +193,8 @@ export default function ProjectSettingsPage() {
       toast.success('State updated successfully');
     } catch (error) {
       toast.error(error.message || 'Failed to update state');
+    } finally {
+      setIsUpdatingState(false);
     }
   };
 
@@ -198,12 +223,16 @@ export default function ProjectSettingsPage() {
   };
 
   const closeLabelModal = () => {
+    // Prevent closing modal while creating/updating
+    if (isCreatingLabel || isUpdatingLabel) return;
     setIsLabelModalOpen(false);
     setEditingLabel(null);
     labelForm.reset();
   };
 
   const closeStateModal = () => {
+    // Prevent closing modal while creating/updating
+    if (isCreatingState || isUpdatingState) return;
     setIsStateModalOpen(false);
     setEditingState(null);
     stateForm.reset();
@@ -455,6 +484,7 @@ export default function ProjectSettingsPage() {
         isOpen={isLabelModalOpen}
         onClose={closeLabelModal}
         title={editingLabel ? 'Edit Label' : 'Create Label'}
+        canClose={!isCreatingLabel && !isUpdatingLabel}
       >
         <form onSubmit={labelForm.handleSubmit(editingLabel ? handleUpdateLabel : handleCreateLabel)} className="space-y-4">
           <div>
@@ -464,6 +494,7 @@ export default function ProjectSettingsPage() {
             <Input
               {...labelForm.register('name')}
               placeholder="e.g., Bug, Feature, Enhancement"
+              disabled={isCreatingLabel || isUpdatingLabel}
             />
             {labelForm.formState.errors.name && (
               <p className="text-red-500 text-sm mt-1">{labelForm.formState.errors.name.message}</p>
@@ -478,11 +509,13 @@ export default function ProjectSettingsPage() {
                 type="color"
                 {...labelForm.register('color')}
                 className="w-20 h-10"
+                disabled={isCreatingLabel || isUpdatingLabel}
               />
               <Input
                 {...labelForm.register('color')}
                 placeholder="#3B82F6"
                 pattern="^#[0-9A-Fa-f]{6}$"
+                disabled={isCreatingLabel || isUpdatingLabel}
               />
             </div>
             {labelForm.formState.errors.color && (
@@ -490,11 +523,26 @@ export default function ProjectSettingsPage() {
             )}
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={closeLabelModal}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={closeLabelModal}
+              disabled={isCreatingLabel || isUpdatingLabel}
+            >
               Cancel
             </Button>
-            <Button type="submit">
-              {editingLabel ? 'Update' : 'Create'} Label
+            <Button 
+              type="submit"
+              disabled={isCreatingLabel || isUpdatingLabel}
+            >
+              {isCreatingLabel || isUpdatingLabel ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                  {isCreatingLabel ? 'Creating...' : 'Updating...'}
+                </>
+              ) : (
+                `${editingLabel ? 'Update' : 'Create'} Label`
+              )}
             </Button>
           </div>
         </form>
@@ -505,6 +553,7 @@ export default function ProjectSettingsPage() {
         isOpen={isStateModalOpen}
         onClose={closeStateModal}
         title={editingState ? 'Edit Custom State' : 'Create Custom State'}
+        canClose={!isCreatingState && !isUpdatingState}
       >
         <form onSubmit={stateForm.handleSubmit(editingState ? handleUpdateState : handleCreateState)} className="space-y-4">
           <div>
@@ -514,6 +563,7 @@ export default function ProjectSettingsPage() {
             <Input
               {...stateForm.register('name')}
               placeholder="e.g., In Review, Testing, Done"
+              disabled={isCreatingState || isUpdatingState}
             />
             {stateForm.formState.errors.name && (
               <p className="text-red-500 text-sm mt-1">{stateForm.formState.errors.name.message}</p>
@@ -528,11 +578,13 @@ export default function ProjectSettingsPage() {
                 type="color"
                 {...stateForm.register('color')}
                 className="w-20 h-10"
+                disabled={isCreatingState || isUpdatingState}
               />
               <Input
                 {...stateForm.register('color')}
                 placeholder="#6B7280"
                 pattern="^#[0-9A-Fa-f]{6}$"
+                disabled={isCreatingState || isUpdatingState}
               />
             </div>
             {stateForm.formState.errors.color && (
@@ -548,17 +600,33 @@ export default function ProjectSettingsPage() {
               {...stateForm.register('wipLimit', { valueAsNumber: true })}
               placeholder="Leave empty for unlimited"
               min="1"
+              disabled={isCreatingState || isUpdatingState}
             />
             <p className="text-xs text-gray-500 mt-1">
               Maximum number of issues allowed in this state
             </p>
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={closeStateModal}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={closeStateModal}
+              disabled={isCreatingState || isUpdatingState}
+            >
               Cancel
             </Button>
-            <Button type="submit">
-              {editingState ? 'Update' : 'Create'} State
+            <Button 
+              type="submit"
+              disabled={isCreatingState || isUpdatingState}
+            >
+              {isCreatingState || isUpdatingState ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                  {isCreatingState ? 'Creating...' : 'Updating...'}
+                </>
+              ) : (
+                `${editingState ? 'Update' : 'Create'} State`
+              )}
             </Button>
           </div>
         </form>

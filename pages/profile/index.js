@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { api } from '../../utils/api';
 import ProfileForm from '../../components/profile/ProfileForm';
 import PasswordForm from '../../components/profile/PasswordForm';
@@ -12,28 +13,34 @@ import { formatDate } from '../../lib/utils';
 
 export default function ProfilePage() {
   const { data: session, status } = useSession();
+  const { user: supabaseUser, loading: supabaseLoading } = useSupabaseAuth();
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
 
+  // Use Supabase user if available, otherwise use NextAuth session
+  const currentUser = supabaseUser || session?.user;
+  const isAuthenticated = (status === 'authenticated' && session) || supabaseUser;
+  const isLoading = status === 'loading' || supabaseLoading;
+
   useEffect(() => {
-    // Wait for session to load
-    if (status === 'loading') {
+    // Wait for router and auth to be ready
+    if (!router.isReady || isLoading) {
       return;
     }
 
     // If not authenticated, redirect to signin
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+    if (!isAuthenticated) {
+      router.replace('/auth/signin');
       return;
     }
 
     // If authenticated, fetch profile
-    if (status === 'authenticated' && session?.user) {
+    if (isAuthenticated) {
       fetchProfile();
     }
-  }, [status, session]);
+  }, [router.isReady, status, session, supabaseUser, supabaseLoading, isAuthenticated, isLoading, router]);
 
   const fetchProfile = async () => {
     try {
@@ -64,7 +71,7 @@ export default function ProfilePage() {
   };
 
   // Show loading state while checking authentication or fetching profile
-  if (status === 'loading' || loading) {
+  if (isLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -75,8 +82,13 @@ export default function ProfilePage() {
     );
   }
 
+  // If not authenticated, don't render (redirect will happen)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   // If no user data after loading, show error
-  if (!user && status === 'authenticated') {
+  if (!user && isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md">
@@ -85,11 +97,6 @@ export default function ProfilePage() {
         </div>
       </div>
     );
-  }
-
-  // If not authenticated, don't render (redirect will happen)
-  if (status === 'unauthenticated') {
-    return null;
   }
 
   return (
