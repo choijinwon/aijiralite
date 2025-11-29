@@ -7,6 +7,8 @@
   NODE_VERSION = "18"
   NPM_FLAGS = "--legacy-peer-deps"
   SKIP_ENV_VALIDATION = "true"
+  # 서브모듈 체크아웃 비활성화
+  NETLIFY_SUBMODULE_DISABLED = "true"
 
 # Next.js 플러그인
 [[plugins]]
