@@ -51,7 +51,7 @@ export const authOptions = {
             return null;
           }
 
-          console.log('Login successful for user:', user.email);
+          console.log('✅ [NextAuth] Login successful for user:', user.email, 'ID:', user.id);
           return {
             id: user.id,
             email: user.email,
@@ -112,10 +112,44 @@ export const authOptions = {
       return true;
     },
     async session({ session, token }) {
+      // Always fetch fresh user data from database to ensure correct email
+      if (token?.sub) {
+        try {
+          const dbUser = await db.user.findUnique({
+            where: { id: token.sub, deletedAt: null },
+            select: { id: true, email: true, name: true, avatar: true }
+          });
+          
+          if (dbUser) {
+            console.log('✅ [NextAuth] Session callback - User from DB:', {
+              id: dbUser.id,
+              email: dbUser.email,
+              name: dbUser.name
+            });
+            
+            session.user.id = dbUser.id;
+            session.user.email = dbUser.email;
+            session.user.name = dbUser.name;
+            session.user.image = dbUser.avatar;
+            return session;
+          } else {
+            console.warn('⚠️ [NextAuth] Session callback - User not found in DB for ID:', token.sub);
+          }
+        } catch (error) {
+          console.error('❌ [NextAuth] Error fetching user in session callback:', error);
+        }
+      }
+      
+      // Fallback to token data if database fetch fails
+      console.log('⚠️ [NextAuth] Session callback - Using token data as fallback:', {
+        id: token?.sub,
+        email: token?.email,
+        name: token?.name
+      });
+      
       if (token?.sub) {
         session.user.id = token.sub;
       }
-      // Google OAuth 정보 추가
       if (token?.email) {
         session.user.email = token.email;
       }
@@ -128,10 +162,28 @@ export const authOptions = {
       return session;
     },
     async jwt({ token, user, account }) {
+      // When user signs in, store their information in token
       if (user) {
+        console.log('🔑 [NextAuth] JWT callback - User signing in:', {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          provider: account?.provider
+        });
+        
         token.sub = user.id;
+        // Store email and name for all providers (not just Google)
+        if (user.email) {
+          token.email = user.email;
+        }
+        if (user.name) {
+          token.name = user.name;
+        }
+        if (user.image) {
+          token.picture = user.image;
+        }
       }
-      // Google OAuth 사용자 정보 저장
+      // Google OAuth specific handling
       if (account?.provider === 'google' && user) {
         token.email = user.email;
         token.name = user.name;

@@ -11,16 +11,37 @@ export default async function handler(req, res) {
     const { teamId } = req.query;
 
     if (req.method === 'GET') {
+      // Build where clause to include:
+      // 1. Projects owned by user
+      // 2. Projects in teams where user is a member (including team owner)
       const where = {
         deletedAt: null,
         OR: [
           { ownerId: user.id },
-          { team: { members: { some: { userId: user.id } } } }
+          { 
+            team: { 
+              OR: [
+                { ownerId: user.id },
+                { members: { some: { userId: user.id } } }
+              ]
+            }
+          }
         ]
       };
 
       if (teamId) {
-        await checkTeamMembership(user.id, teamId);
+        // Verify user has access to this team
+        try {
+          await checkTeamMembership(user.id, teamId);
+        } catch (error) {
+          // If not a member, still allow if they're the team owner
+          const team = await db.team.findUnique({
+            where: { id: teamId, deletedAt: null }
+          });
+          if (!team || team.ownerId !== user.id) {
+            throw error;
+          }
+        }
         where.teamId = teamId;
       }
 

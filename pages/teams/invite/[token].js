@@ -49,9 +49,14 @@ export default function InvitePage() {
   const handleAccept = async () => {
     setAccepting(true);
     try {
-      await api.acceptInvite(token);
+      const result = await api.acceptInvite(token);
       toast.success('Successfully joined the team!');
-      router.push(`/teams/${invite.team.id}`);
+      
+      // After accepting, redirect to team page where they can see projects
+      // Small delay to ensure database is updated
+      setTimeout(() => {
+        router.push(`/teams/${invite.team.id}`);
+      }, 500);
     } catch (error) {
       toast.error(error.message || 'Failed to accept invitation');
     } finally {
