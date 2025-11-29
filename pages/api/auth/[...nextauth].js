@@ -69,6 +69,12 @@ export const authOptions = {
     async signIn({ user, account, profile }) {
       if (account.provider === 'google') {
         try {
+          // DATABASE_URL 체크
+          if (!process.env.DATABASE_URL) {
+            console.error('❌ [NextAuth] DATABASE_URL is not set. Cannot create user.');
+            return false;
+          }
+
           const existingUser = await db.user.findUnique({
             where: { email: user.email }
           });
@@ -77,19 +83,28 @@ export const authOptions = {
             return true;
           }
 
+          // 새 사용자 생성
           await db.user.create({
             data: {
               email: user.email,
-              name: user.name,
+              name: user.name || user.email.split('@')[0],
               avatar: user.image,
               provider: 'google',
               providerId: account.providerAccountId,
             }
           });
 
+          console.log('✅ [NextAuth] Google user created:', user.email);
           return true;
         } catch (error) {
-          console.error('Error during Google sign in:', error);
+          console.error('❌ [NextAuth] Error during Google sign in:', error);
+          
+          // DATABASE_URL 관련 에러인지 확인
+          if (error.message?.includes('DATABASE_URL') || error.message?.includes('Environment variable')) {
+            console.error('   → DATABASE_URL environment variable is not configured');
+            console.error('   → Please set DATABASE_URL in Netlify environment variables');
+          }
+          
           return false;
         }
       }
