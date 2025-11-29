@@ -18,14 +18,23 @@ Netlify 배포 시 필요한 환경 변수를 설정하는 방법입니다.
 
 #### 데이터베이스 (필수)
 ```
+# Supabase (PostgreSQL) - 권장
+DATABASE_URL=postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
+```
+
+또는
+
+```
+# PlanetScale (MySQL)
 DATABASE_URL=mysql://username:password@host:port/database?sslaccept=strict
 ```
 
 **중요**: Netlify는 SQLite를 지원하지 않습니다. 외부 데이터베이스가 필요합니다.
 
 **데이터베이스 옵션:**
-- **PlanetScale** (MySQL) - 권장: https://planetscale.com
-- **Supabase** (PostgreSQL): https://supabase.com
+- **Supabase** (PostgreSQL) - 권장: https://supabase.com
+- **PlanetScale** (MySQL): https://planetscale.com
 - **Railway** (MySQL/PostgreSQL): https://railway.app
 
 #### NextAuth (필수)
@@ -82,6 +91,24 @@ SMTP_PASS=your-app-password
 
 ### Step 1: 데이터베이스 생성
 
+#### Supabase 사용 시 (권장):
+
+1. [Supabase](https://supabase.com)에서 프로젝트 생성
+2. Project Settings → Database → Connection string 복사
+3. 연결 문자열 형식:
+   ```
+   # Connection pooling (일반 사용)
+   DATABASE_URL=postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true
+   
+   # Direct connection (마이그레이션용)
+   DIRECT_URL=postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
+   ```
+4. Prisma 스키마는 이미 PostgreSQL로 설정되어 있습니다
+5. 마이그레이션 실행:
+   ```bash
+   npx prisma db push
+   ```
+
 #### PlanetScale 사용 시:
 
 1. [PlanetScale](https://planetscale.com)에서 계정 생성
@@ -91,7 +118,8 @@ SMTP_PASS=your-app-password
    mysql://username:password@host:port/database?sslaccept=strict
    ```
 4. Prisma 스키마 provider 변경:
-   - `prisma/schema.prisma`에서 `provider = "sqlite"`를 `provider = "mysql"`로 변경
+   - `prisma/schema.prisma`에서 `provider = "postgresql"`를 `provider = "mysql"`로 변경
+   - `directUrl` 제거
 5. 마이그레이션 실행:
    ```bash
    npx prisma db push
@@ -103,7 +131,10 @@ SMTP_PASS=your-app-password
 2. "Add a variable" 클릭
 3. 각 변수 추가:
    - Variable: `DATABASE_URL`
-   - Value: `mysql://username:password@host:port/database?sslaccept=strict`
+   - Value: `postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true`
+   - Scope: All scopes (또는 Production)
+   - Variable: `DIRECT_URL`
+   - Value: `postgresql://postgres.nmhprrhoqovbbhiwfbkk:[YOUR-PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres`
    - Scope: All scopes (또는 Production)
 4. 나머지 변수들도 동일하게 추가
 
