@@ -2,10 +2,11 @@
 import { db } from '../../../../lib/db';
 import { authenticate } from '../../../../lib/auth';
 import { checkProjectAccess } from '../../../../lib/permissions';
+import { authOptions } from '../../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions, res);
     const { id } = req.query;
 
     await checkProjectAccess(user.id, id);

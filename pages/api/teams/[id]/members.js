@@ -2,10 +2,11 @@
 import { db } from '../../../../lib/db';
 import { authenticate } from '../../../../lib/auth';
 import { checkTeamRole } from '../../../../lib/permissions';
+import { authOptions } from '../../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions, res);
     const { id } = req.query;
 
     if (req.method === 'GET') {
@@ -131,10 +132,23 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('Team members API error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
     
     // Handle authentication errors
-    if (error.message?.includes('token') || error.message?.includes('No token') || error.message?.includes('Invalid token')) {
-      return res.status(401).json({ error: 'Authentication required' });
+    if (error.message?.includes('token') || 
+        error.message?.includes('No token') || 
+        error.message?.includes('Invalid token') ||
+        error.message?.includes('Authentication required') ||
+        error.message?.includes('DATABASE_URL')) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: error.message || 'Please sign in to access this resource'
+      });
     }
     
     // Handle permission errors
@@ -147,7 +161,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Database constraint violation' });
     }
     
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    // Handle DATABASE_URL errors
+    if (error.message?.includes('DATABASE_URL') || error.message?.includes('Environment variable')) {
+      return res.status(500).json({ 
+        error: 'Database configuration error',
+        message: 'DATABASE_URL is not configured. Please check your environment variables.'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: error.message || 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 }
 

@@ -2,6 +2,7 @@
 import { db } from '../../../../lib/db';
 import { authenticate } from '../../../../lib/auth';
 import { checkProjectAccess } from '../../../../lib/permissions';
+import { authOptions } from '../../../auth/[...nextauth]';
 import { z } from 'zod';
 
 const labelSchema = z.object({
@@ -11,7 +12,7 @@ const labelSchema = z.object({
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions, res);
     const { id: projectId } = req.query;
 
     await checkProjectAccess(user.id, projectId);
@@ -65,11 +66,40 @@ export default async function handler(req, res) {
       res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error(error);
+    console.error('Labels API error:', error);
+    
+    // Handle authentication errors
+    if (error.message?.includes('token') || error.message?.includes('No token') || error.message?.includes('Invalid token') || error.message?.includes('Authentication required')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Handle permission errors
+    if (error.message?.includes('permission') || error.message?.includes('access') || error.message?.includes('not found')) {
+      return res.status(403).json({ error: error.message || 'Access denied' });
+    }
+    
+    // Handle validation errors
     if (error.name === 'ZodError') {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    
+    // Handle database errors
+    if (error.code === 'P2002' || error.code?.startsWith('P')) {
+      return res.status(400).json({ error: 'Database constraint violation' });
+    }
+    
+    // Handle DATABASE_URL errors
+    if (error.message?.includes('DATABASE_URL') || error.message?.includes('Environment variable')) {
+      return res.status(500).json({ 
+        error: 'Database configuration error',
+        message: 'DATABASE_URL is not configured. Please check your environment variables.'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: error.message || 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 }
 

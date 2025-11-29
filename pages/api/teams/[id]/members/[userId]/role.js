@@ -3,10 +3,11 @@ import { db } from '../../../../../../lib/db';
 import { authenticate } from '../../../../../../lib/auth';
 import { checkTeamRole } from '../../../../../../lib/permissions';
 import { notifyRoleChanged } from '../../../../../../lib/notifications';
+import { authOptions } from '../../../../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions, res);
     const { id, userId } = req.query;
 
     if (req.method === 'PUT') {
