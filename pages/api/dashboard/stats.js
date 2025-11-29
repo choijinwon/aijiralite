@@ -1,6 +1,7 @@
 // pages/api/dashboard/stats.js
 import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -8,7 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { type = 'personal' } = req.query; // 'personal' or 'team'
 
     const now = new Date();

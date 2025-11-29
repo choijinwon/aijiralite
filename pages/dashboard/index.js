@@ -105,6 +105,22 @@ export default function Dashboard() {
     );
   }
 
+  if (!session) {
+    return null;
+  }
+
+  // Ensure stats has default values
+  const safeStats = stats || {
+    totalIssues: 0,
+    totalProjects: 0,
+    totalMembers: 0,
+    totalTeams: 0,
+    overdueIssues: 0,
+    statusCounts: {},
+    priorityCounts: {},
+    dailyTrend: []
+  };
+
   const myIssues = issues.filter(i => i.assigneeId === session?.user?.id);
   const recentProjects = projects.slice(0, 5);
   const recentIssues = myIssues.slice(0, 5);
@@ -164,20 +180,20 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <StatCard
             title={dashboardType === 'personal' ? 'My Issues' : 'Team Issues'}
-            value={stats?.totalIssues || 0}
+            value={safeStats.totalIssues || 0}
             subtitle={dashboardType === 'personal' ? 'Assigned to you' : 'All team issues'}
             icon={AlertCircle}
           />
           <StatCard
             title={dashboardType === 'personal' ? 'My Projects' : 'Team Projects'}
-            value={stats?.totalProjects || 0}
+            value={safeStats.totalProjects || 0}
             subtitle={dashboardType === 'personal' ? 'Your projects' : 'All team projects'}
             icon={FolderKanban}
           />
           {dashboardType === 'team' && (
             <StatCard
               title="Team Members"
-              value={stats?.totalMembers || 0}
+              value={safeStats.totalMembers || 0}
               subtitle="Active members"
               icon={Users}
             />
@@ -185,17 +201,17 @@ export default function Dashboard() {
           {dashboardType === 'team' && (
             <StatCard
               title="Teams"
-              value={stats?.totalTeams || 0}
+              value={safeStats.totalTeams || 0}
               subtitle="Your teams"
               icon={Users}
             />
           )}
           <StatCard
             title="Overdue Issues"
-            value={stats?.overdueIssues || 0}
+            value={safeStats.overdueIssues || 0}
             subtitle="Past due date"
             icon={Calendar}
-            trend={(stats?.overdueIssues || 0) > 0 ? 1 : 0}
+            trend={(safeStats.overdueIssues || 0) > 0 ? 1 : 0}
           />
         </div>
 
@@ -204,13 +220,13 @@ export default function Dashboard() {
           {/* Issue Status Chart */}
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issues by Status</h3>
-            <IssueStatusChart data={stats?.statusCounts || {}} />
+            <IssueStatusChart data={safeStats.statusCounts || {}} />
           </Card>
 
           {/* Priority Chart */}
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issues by Priority</h3>
-            <PriorityChart data={stats?.priorityCounts || {}} />
+            <PriorityChart data={safeStats.priorityCounts || {}} />
           </Card>
         </div>
 
@@ -218,7 +234,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <Card>
             <h3 className="text-lg font-semibold mb-4">Issue Trend (Last 7 Days)</h3>
-            <IssueTrendChart data={stats?.dailyTrend || []} />
+            <IssueTrendChart data={safeStats.dailyTrend || []} />
           </Card>
         </div>
 

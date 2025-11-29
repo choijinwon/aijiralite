@@ -2,10 +2,11 @@
 import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
 import { teamSchema } from '../../../lib/validations';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
 
     if (req.method === 'GET') {
       const teams = await db.team.findMany({

@@ -1,10 +1,11 @@
 // pages/api/profile/index.js
 import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
 
     if (req.method === 'GET') {
       const userData = await db.user.findUnique({

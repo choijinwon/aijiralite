@@ -4,10 +4,11 @@ import { authenticate } from '../../../lib/auth';
 import { checkProjectAccess } from '../../../lib/permissions';
 import { issueSchema } from '../../../lib/validations';
 import { sendIssueAssignedEmail } from '../../../lib/email';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
-    const user = await authenticate(req);
+    const user = await authenticate(req, authOptions);
     const { projectId } = req.query;
 
     if (req.method === 'GET') {
