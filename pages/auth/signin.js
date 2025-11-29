@@ -1,10 +1,10 @@
 // pages/auth/signin.js
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema } from '../../lib/validations';
+import { supabase } from '../../lib/supabase';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import toast from 'react-hot-toast';
@@ -15,21 +15,21 @@ export default function SignIn() {
     resolver: zodResolver(loginSchema)
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      const result = await signIn('credentials', {
-        redirect: false,
+      // Credentials login using Supabase
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
-        callbackUrl: '/dashboard',
       });
 
-      if (result?.error) {
-        console.error('Login error:', result.error);
-        toast.error(result.error === 'CredentialsSignin' ? 'Invalid email or password' : 'Login failed');
-      } else if (result?.ok) {
+      if (error) {
+        console.error('Login error:', error);
+        toast.error(error.message || 'Invalid email or password');
+      } else if (authData?.user) {
         toast.success('Signed in successfully');
         router.push('/dashboard');
       } else {
@@ -43,8 +43,28 @@ export default function SignIn() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    signIn('google', { callbackUrl: '/dashboard' });
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        console.error('Error signing in with Google', error);
+        toast.error(error.message || 'Failed to sign in with Google');
+        setIsGoogleLoading(false);
+      }
+      // If successful, user will be redirected to Google OAuth page
+      // Then redirected back to /auth/callback
+    } catch (error) {
+      console.error('Google sign in exception:', error);
+      toast.error('An error occurred');
+      setIsGoogleLoading(false);
+    }
   };
 
   return (
@@ -105,8 +125,9 @@ export default function SignIn() {
             variant="secondary"
             className="w-full mt-4"
             onClick={handleGoogleSignIn}
+            disabled={isGoogleLoading}
           >
-            Google
+            {isGoogleLoading ? 'Connecting...' : 'Google'}
           </Button>
         </div>
 
