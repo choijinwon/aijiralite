@@ -11,19 +11,18 @@
   NETLIFY_SUBMODULE_DISABLED = "true"
 
 # Next.js 플러그인
+# 이 플러그인이 자동으로 모든 리다이렉트와 라우팅을 처리합니다
+# Netlify가 빌드 시 자동으로 설치합니다
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# 리다이렉트 규칙 (Next.js API 라우트 지원)
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/next"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/next"
-  status = 200
+# 참고: @netlify/plugin-nextjs 플러그인을 사용할 때는
+# 수동 리다이렉트 규칙이 필요하지 않습니다.
+# 플러그인이 자동으로 처리:
+# - 모든 페이지 라우트 (SSR/SSG/ISR)
+# - API 라우트
+# - 정적 파일 서빙 (_next/static)
+# - 이미지 최적화
 
 # 보안 헤더
 [[headers]]
