@@ -133,7 +133,42 @@ export const authOptions = {
     strategy: 'jwt',
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 };
 
-export default NextAuth(authOptions);
+// Error handling wrapper
+const handler = async (req, res) => {
+  try {
+    // Check if NEXTAUTH_SECRET is set
+    if (!process.env.NEXTAUTH_SECRET) {
+      console.error('NEXTAUTH_SECRET is not set');
+      return res.status(500).json({ 
+        error: 'Server configuration error',
+        message: 'NEXTAUTH_SECRET is not configured'
+      });
+    }
+
+    // Check if NEXTAUTH_URL is set
+    if (!process.env.NEXTAUTH_URL) {
+      console.error('NEXTAUTH_URL is not set');
+      // In production, try to get from request
+      if (process.env.NODE_ENV === 'production') {
+        const url = req.headers.host 
+          ? `https://${req.headers.host}` 
+          : 'https://aijiralite.netlify.app';
+        process.env.NEXTAUTH_URL = url;
+      }
+    }
+
+    return NextAuth(authOptions)(req, res);
+  } catch (error) {
+    console.error('NextAuth error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
+  }
+};
+
+export default handler;
 

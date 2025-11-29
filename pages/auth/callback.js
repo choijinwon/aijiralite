@@ -1,21 +1,25 @@
 // pages/auth/callback.js
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabase';
 import Loading from '../../components/ui/Loading';
 
 export default function AuthCallback() {
   const router = useRouter();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Get the session from the URL hash
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Handle the OAuth callback
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error('Auth callback error:', error);
-          router.push('/auth/signin?error=OAuthSignin');
+        if (sessionError) {
+          console.error('Auth callback error:', sessionError);
+          setError(sessionError.message);
+          setTimeout(() => {
+            router.push('/auth/signin?error=OAuthSignin');
+          }, 2000);
           return;
         }
 
@@ -23,21 +27,42 @@ export default function AuthCallback() {
           // User is authenticated, redirect to dashboard
           router.push('/dashboard');
         } else {
-          // No session, redirect to sign in
-          router.push('/auth/signin');
+          // No session, wait a bit for the session to be established
+          // Sometimes there's a delay in the OAuth callback
+          setTimeout(async () => {
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession?.user) {
+              router.push('/dashboard');
+            } else {
+              router.push('/auth/signin?error=NoSession');
+            }
+          }, 1000);
         }
       } catch (error) {
         console.error('Callback exception:', error);
-        router.push('/auth/signin?error=OAuthSignin');
+        setError(error.message);
+        setTimeout(() => {
+          router.push('/auth/signin?error=OAuthSignin');
+        }, 2000);
       }
     };
 
-    handleAuthCallback();
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      handleAuthCallback();
+    }
   }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Loading text="Completing sign in..." />
+      {error ? (
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-gray-600">Redirecting to sign in...</p>
+        </div>
+      ) : (
+        <Loading text="Completing sign in..." />
+      )}
     </div>
   );
 }

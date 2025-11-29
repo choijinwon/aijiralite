@@ -44,6 +44,12 @@ export default function SignIn() {
   };
 
   const handleGoogleSignIn = async () => {
+    // Check if Supabase is configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      toast.error('Supabase is not configured. Please check your environment variables.');
+      return;
+    }
+
     setIsGoogleLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
