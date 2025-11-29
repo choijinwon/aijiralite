@@ -9,6 +9,10 @@
 4. 빌드 설정:
    - Build command: `npm run netlify-build`
    - Publish directory: `.next`
+5. **서브모듈 체크아웃 비활성화** (중요!):
+   - Site settings > Build & deploy > Environment
+   - "Deploy contexts" 섹션에서 "Submodules" 체크 해제
+   - 또는 Site settings > Build & deploy > Build settings에서 "Skip submodules" 체크
 
 ## 2. 환경 변수 설정
 
@@ -86,6 +90,17 @@ npx prisma migrate deploy
    - `/api/teams`, `/api/projects` 등 API 엔드포인트 테스트
 
 ## 6. 문제 해결
+
+### 서브모듈 오류 (Submodule Error):
+**오류 메시지**: `fatal: No url found for submodule path 'github-repos/...' in .gitmodules`
+
+**해결 방법**:
+1. Netlify 대시보드 > Site settings > Build & deploy > Build settings
+2. "Submodules" 섹션에서 "Skip submodules" 체크
+3. 또는 "Deploy contexts"에서 서브모듈 체크아웃 비활성화
+4. 변경사항 저장 후 재배포
+
+**참고**: `github-repos/` 디렉토리는 빌드에 필요하지 않으므로 `.gitignore`에 추가되어 있습니다.
 
 ### 빌드 실패 시:
 - Netlify 빌드 로그 확인

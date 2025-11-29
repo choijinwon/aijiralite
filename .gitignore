@@ -40,3 +40,6 @@ next-env.d.ts
 
 # netlify
 .netlify
+
+# github repos (submodules - not needed for build)
+github-repos/
