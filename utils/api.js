@@ -4,6 +4,22 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 export async function apiRequest(endpoint, options = {}) {
   let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
+  // Try to get NextAuth session if no JWT token
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const { getSession } = await import('next-auth/react');
+      const session = await getSession();
+      if (session?.user?.id) {
+        // NextAuth session exists, but we need to pass it via cookie
+        // The cookie will be automatically included in the request
+        // We don't need to set Authorization header for NextAuth
+      }
+    } catch (error) {
+      // NextAuth not available, continue
+      console.log('NextAuth session check failed:', error.message);
+    }
+  }
+  
   // Try to get Supabase session token if no JWT token
   if (!token && typeof window !== 'undefined') {
     try {
@@ -25,12 +41,25 @@ export async function apiRequest(endpoint, options = {}) {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
+    // Include credentials to send cookies (for NextAuth session)
+    credentials: 'include',
   };
 
   const response = await fetch(`${API_URL}${endpoint}`, config);
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+    
+    // If authentication error, try to redirect to sign in
+    if (response.status === 401 && typeof window !== 'undefined') {
+      // Don't redirect if we're already on auth pages
+      if (!window.location.pathname.startsWith('/auth/')) {
+        // Clear any stored tokens
+        localStorage.removeItem('token');
+        // Redirect will be handled by the component
+      }
+    }
+    
     throw new Error(error.error || error.message || 'Request failed');
   }
 
