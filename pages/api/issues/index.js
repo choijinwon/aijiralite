@@ -3,7 +3,7 @@ import { db } from '../../../lib/db';
 import { authenticate } from '../../../lib/auth';
 import { checkProjectAccess } from '../../../lib/permissions';
 import { issueSchema } from '../../../lib/validations';
-import { sendIssueNotification } from '../../../lib/email';
+import { sendIssueAssignedEmail } from '../../../lib/email';
 
 export default async function handler(req, res) {
   try {
@@ -134,7 +134,12 @@ export default async function handler(req, res) {
             });
 
             // Send email notification
-            sendIssueNotification(assignee.email, title, `${process.env.NEXTAUTH_URL}/issues/${newIssue.id}`);
+            await sendIssueAssignedEmail(
+              assignee.email, 
+              title, 
+              `${process.env.NEXTAUTH_URL}/issues/${newIssue.id}`,
+              user.name
+            );
           }
         }
 
