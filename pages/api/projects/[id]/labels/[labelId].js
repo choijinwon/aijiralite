@@ -47,12 +47,27 @@ export default async function handler(req, res) {
         }
       }
 
+      // Build update data - always include color if provided in request body
+      const updateData = {};
+      if (name !== undefined && name !== null && name !== '') {
+        updateData.name = name;
+      }
+      // If color is in the request body, always update it (even if same value)
+      if (req.body.color !== undefined && req.body.color !== null && req.body.color !== '') {
+        updateData.color = req.body.color;
+      } else if (color !== undefined && color !== null && color !== '') {
+        // Fallback to validated color
+        updateData.color = color;
+      }
+
+      // Ensure at least one field is being updated
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
       const updatedLabel = await db.label.update({
         where: { id: labelId },
-        data: {
-          ...(name && { name }),
-          ...(color && { color })
-        }
+        data: updateData
       });
 
       res.status(200).json(updatedLabel);

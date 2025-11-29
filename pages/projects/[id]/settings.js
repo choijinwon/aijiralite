@@ -50,6 +50,9 @@ export default function ProjectSettingsPage() {
     defaultValues: { name: '', color: '#3B82F6' }
   });
 
+  // Watch color value to sync between color picker and text input
+  const watchedColor = labelForm.watch('color');
+
   const stateForm = useForm({
     resolver: zodResolver(stateSchema),
     defaultValues: { name: '', color: '#6B7280', wipLimit: null }
@@ -142,7 +145,16 @@ export default function ProjectSettingsPage() {
   const handleUpdateLabel = async (data) => {
     setIsUpdatingLabel(true);
     try {
-      const updated = await api.updateLabel(id, editingLabel.id, data);
+      // Always include color if it's provided and valid
+      const updateData = {};
+      if (data.name !== undefined && data.name !== '') {
+        updateData.name = data.name;
+      }
+      if (data.color !== undefined && data.color !== null && data.color !== '' && data.color.match(/^#[0-9A-Fa-f]{6}$/)) {
+        updateData.color = data.color;
+      }
+      
+      const updated = await api.updateLabel(id, editingLabel.id, updateData);
       setLabels(labels.map(l => l.id === editingLabel.id ? updated : l));
       setIsLabelModalOpen(false);
       setEditingLabel(null);
@@ -507,12 +519,23 @@ export default function ProjectSettingsPage() {
             <div className="flex gap-2">
               <Input
                 type="color"
-                {...labelForm.register('color')}
+                value={watchedColor || '#3B82F6'}
+                onChange={(e) => {
+                  const newColor = e.target.value;
+                  labelForm.setValue('color', newColor, { shouldValidate: true, shouldDirty: true });
+                }}
                 className="w-20 h-10"
                 disabled={isCreatingLabel || isUpdatingLabel}
               />
               <Input
-                {...labelForm.register('color')}
+                value={watchedColor || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Only update if valid hex color format
+                  if (value === '' || value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
+                    labelForm.setValue('color', value, { shouldValidate: true, shouldDirty: true });
+                  }
+                }}
                 placeholder="#3B82F6"
                 pattern="^#[0-9A-Fa-f]{6}$"
                 disabled={isCreatingLabel || isUpdatingLabel}
