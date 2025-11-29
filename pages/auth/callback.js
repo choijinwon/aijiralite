@@ -11,10 +11,24 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Handle the OAuth callback
+        // Handle the OAuth callback from URL hash
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError) {
+        // Also check URL hash for OAuth tokens
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const errorParam = hashParams.get('error');
+
+        if (errorParam) {
+          console.error('OAuth error from URL:', errorParam);
+          setError(errorParam);
+          setTimeout(() => {
+            router.push('/auth/signin?error=OAuthSignin');
+          }, 2000);
+          return;
+        }
+
+        if (sessionError && !accessToken) {
           console.error('Auth callback error:', sessionError);
           setError(sessionError.message);
           setTimeout(() => {
@@ -23,20 +37,38 @@ export default function AuthCallback() {
           return;
         }
 
+        // If we have an access token in the URL, wait for session to be established
+        if (accessToken && !session) {
+          console.log('Access token found, waiting for session...');
+          // Wait a bit for Supabase to process the token
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          const { data: { session: newSession }, error: newError } = await supabase.auth.getSession();
+          
+          if (newError) {
+            console.error('Error getting session after OAuth:', newError);
+            setError(newError.message);
+            setTimeout(() => {
+              router.push('/auth/signin?error=OAuthSignin');
+            }, 2000);
+            return;
+          }
+
+          if (newSession?.user) {
+            console.log('Session established, redirecting to dashboard');
+            router.push('/dashboard');
+            return;
+          }
+        }
+
         if (session?.user) {
           // User is authenticated, redirect to dashboard
+          console.log('User authenticated, redirecting to dashboard');
           router.push('/dashboard');
         } else {
-          // No session, wait a bit for the session to be established
-          // Sometimes there's a delay in the OAuth callback
-          setTimeout(async () => {
-            const { data: { session: retrySession } } = await supabase.auth.getSession();
-            if (retrySession?.user) {
-              router.push('/dashboard');
-            } else {
-              router.push('/auth/signin?error=NoSession');
-            }
-          }, 1000);
+          // No session, redirect to sign in
+          console.log('No session found, redirecting to sign in');
+          router.push('/auth/signin?error=NoSession');
         }
       } catch (error) {
         console.error('Callback exception:', error);

@@ -7,6 +7,7 @@ import { loginSchema } from '../../lib/validations';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import PasswordInput from '../../components/ui/PasswordInput';
 import toast from 'react-hot-toast';
 
 export default function SignIn() {
@@ -45,17 +46,27 @@ export default function SignIn() {
 
   const handleGoogleSignIn = async () => {
     // Check if Supabase is configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co') {
       toast.error('Supabase is not configured. Please check your environment variables.');
+      console.error('Supabase configuration missing:', {
+        url: supabaseUrl,
+        key: supabaseKey ? 'set' : 'missing'
+      });
       return;
     }
 
     setIsGoogleLoading(true);
     try {
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      console.log('Initiating Google OAuth with redirect:', redirectUrl);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
         },
       });
 
@@ -63,12 +74,19 @@ export default function SignIn() {
         console.error('Error signing in with Google', error);
         toast.error(error.message || 'Failed to sign in with Google');
         setIsGoogleLoading(false);
+      } else if (data?.url) {
+        // Redirect to Google OAuth page
+        console.log('Redirecting to Google OAuth:', data.url);
+        window.location.href = data.url;
+        // Don't set loading to false here as we're redirecting
+      } else {
+        console.error('No redirect URL received from Supabase');
+        toast.error('Failed to initiate Google sign in');
+        setIsGoogleLoading(false);
       }
-      // If successful, user will be redirected to Google OAuth page
-      // Then redirected back to /auth/callback
     } catch (error) {
       console.error('Google sign in exception:', error);
-      toast.error('An error occurred');
+      toast.error('An error occurred. Please try again.');
       setIsGoogleLoading(false);
     }
   };
@@ -97,8 +115,7 @@ export default function SignIn() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <Input
-              type="password"
+            <PasswordInput
               {...register('password')}
               placeholder="••••••••"
             />
