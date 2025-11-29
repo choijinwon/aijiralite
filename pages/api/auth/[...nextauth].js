@@ -100,11 +100,27 @@ export const authOptions = {
       if (token?.sub) {
         session.user.id = token.sub;
       }
+      // Google OAuth 정보 추가
+      if (token?.email) {
+        session.user.email = token.email;
+      }
+      if (token?.name) {
+        session.user.name = token.name;
+      }
+      if (token?.picture) {
+        session.user.image = token.picture;
+      }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.sub = user.id;
+      }
+      // Google OAuth 사용자 정보 저장
+      if (account?.provider === 'google' && user) {
+        token.email = user.email;
+        token.name = user.name;
+        token.picture = user.image;
       }
       return token;
     }
