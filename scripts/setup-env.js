@@ -20,20 +20,20 @@ console.log('   DIRECT_URL:', directUrl ? '✅ 설정됨' : '❌ 없음');
 // DIRECT_URL이 없고 DATABASE_URL이 있으면 DIRECT_URL을 DATABASE_URL로 설정
 const finalDirectUrl = directUrl || databaseUrl;
 
+// DATABASE_URL이 없어도 빌드는 계속 진행 (Prisma Client 생성은 스키마만 필요)
+// 데이터베이스 작업은 run-build.js에서 선택적으로 처리됨
 if (!finalDirectUrl) {
-  console.error('\n❌ [ERROR] DATABASE_URL이 설정되지 않았습니다!');
-  console.error('\n📋 [해결 방법] Netlify 대시보드에서 환경 변수를 설정하세요:');
-  console.error('   1. https://app.netlify.com 접속');
-  console.error('   2. 사이트 선택 > Site settings > Environment variables');
-  console.error('   3. 다음 환경 변수 추가:');
-  console.error('      - DATABASE_URL: postgresql://user:password@host:port/database?schema=public');
-  console.error('      - DIRECT_URL: DATABASE_URL과 동일한 값');
-  console.error('      - NEXTAUTH_SECRET: 32자 이상의 랜덤 문자열');
-  console.error('      - NEXTAUTH_URL: https://your-site.netlify.app');
-  console.error('      - JWT_SECRET: 32자 이상의 랜덤 문자열');
-  console.error('\n📖 자세한 가이드: QUICK_START_NETLIFY.md 파일 참고');
-  console.error('\n');
-  process.exit(1);
+  console.warn('\n⚠️ [WARNING] DATABASE_URL이 설정되지 않았습니다.');
+  console.warn('   Prisma Client 생성은 계속 진행되지만, 데이터베이스 작업은 건너뜁니다.');
+  console.warn('   런타임에 데이터베이스 연결이 필요합니다.');
+  console.warn('\n📋 [참고] 데이터베이스 작업을 활성화하려면 Netlify 대시보드에서 환경 변수를 설정하세요:');
+  console.warn('   1. https://app.netlify.com 접속');
+  console.warn('   2. 사이트 선택 > Site settings > Environment variables');
+  console.warn('   3. 다음 환경 변수 추가:');
+  console.warn('      - DATABASE_URL: postgresql://user:password@host:port/database?schema=public');
+  console.warn('      - DIRECT_URL: DATABASE_URL과 동일한 값');
+  console.warn('\n📖 자세한 가이드: QUICK_START_NETLIFY.md 파일 참고');
+  console.warn('');
 }
 
 if (!directUrl && databaseUrl) {
@@ -63,13 +63,12 @@ if (!directUrl && databaseUrl) {
 
 // 최종 확인
 console.log('🔍 [ENV SETUP] 최종 환경 변수 확인:');
-console.log('   DATABASE_URL:', process.env.DATABASE_URL ? '✅' : '❌');
-console.log('   DIRECT_URL:', process.env.DIRECT_URL ? '✅' : '❌');
+console.log('   DATABASE_URL:', process.env.DATABASE_URL ? '✅' : '⚠️ 없음');
+console.log('   DIRECT_URL:', process.env.DIRECT_URL ? '✅' : '⚠️ 없음');
 
-if (!process.env.DIRECT_URL) {
-  console.error('   ❌ DIRECT_URL이 여전히 설정되지 않았습니다!');
-  process.exit(1);
+if (process.env.DIRECT_URL) {
+  console.log('✅ [ENV SETUP] 환경 변수 설정 완료');
+} else {
+  console.log('⚠️ [ENV SETUP] 데이터베이스 환경 변수가 없습니다. 빌드는 계속 진행됩니다.');
 }
-
-console.log('✅ [ENV SETUP] 환경 변수 설정 완료');
 

@@ -36,8 +36,9 @@ try {
   // 2. 데이터베이스 스키마 적용 (선택적)
   // 빌드 시 데이터베이스에 연결할 수 없는 경우를 대비해 실패해도 계속 진행
   const skipDbOps = process.env.SKIP_DB_OPERATIONS === 'true';
+  const hasDatabaseUrl = !!(process.env.DATABASE_URL || process.env.DIRECT_URL);
   
-  if (!skipDbOps) {
+  if (!skipDbOps && hasDatabaseUrl) {
     if (hasMigrations) {
       console.log('\n📦 [BUILD] 실행 중: prisma migrate deploy');
       try {
@@ -74,7 +75,12 @@ try {
       }
     }
   } else {
-    console.log('\n⚠️ [BUILD] SKIP_DB_OPERATIONS=true, 데이터베이스 작업 건너뜀');
+    if (skipDbOps) {
+      console.log('\n⚠️ [BUILD] SKIP_DB_OPERATIONS=true, 데이터베이스 작업 건너뜀');
+    } else {
+      console.log('\n⚠️ [BUILD] DATABASE_URL이 설정되지 않아 데이터베이스 작업을 건너뜁니다.');
+      console.log('   (Prisma Client는 생성되었으며, 런타임에 데이터베이스 연결이 필요합니다)');
+    }
   }
 
   // 3. Next.js 빌드
@@ -87,7 +93,16 @@ try {
 
   console.log('\n✅ [BUILD] 빌드 완료!');
 } catch (error) {
-  console.error('\n❌ [BUILD] 빌드 실패:', error.message);
+  console.error('\n❌ [BUILD] 빌드 실패!');
+  console.error('   오류:', error.message || error.toString());
+  if (error.status !== undefined) {
+    console.error('   종료 코드:', error.status);
+  }
+  console.error('\n💡 [도움말]');
+  console.error('   - 위의 빌드 로그에서 실패한 명령어를 확인하세요');
+  console.error('   - 환경 변수가 올바르게 설정되었는지 확인하세요');
+  console.error('   - Prisma 스키마 파일이 올바른지 확인하세요');
+  console.error('   - Netlify 빌드 로그에서 자세한 오류를 확인하세요');
   process.exit(1);
 }
 

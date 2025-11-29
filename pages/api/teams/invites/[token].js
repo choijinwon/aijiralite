@@ -1,7 +1,7 @@
 // pages/api/teams/invites/[token].js
 import { db } from '../../../../lib/db';
 import { authenticate } from '../../../../lib/auth';
-import { authOptions } from '../../../auth/[...nextauth]';
+import { authOptions } from '../../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   try {
