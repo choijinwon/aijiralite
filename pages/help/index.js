@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 
 export default function HelpPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [activeSection, setActiveSection] = useState('getting-started');
 
